@@ -15,83 +15,83 @@ import fr.samflix.vaniametrics.api.MetricRegistry;
 import fr.samflix.vaniametrics.api.Platform;
 
 /**
- * Chunky — l'avancement de la prégénération.
+ * Chunky — pregeneration progress.
  *
- * <p>MÉTRIQUE À DURÉE DE VIE COURTE, et c'est normal : elle vaut tout pendant une génération, et
- * rien le reste du temps. Une prégénération dure des heures et sature le disque et le processeur ;
- * savoir où elle en est évite de confondre « le serveur rame » avec « le serveur travaille ».
+ * <p>SHORT-LIVED METRIC, and that's expected: it's meaningful during a generation, and nothing
+ * the rest of the time. A pregeneration runs for hours and saturates disk and CPU; knowing where
+ * it stands avoids confusing "the server is lagging" with "the server is working".
  *
- * <p>CHUNKY N'ÉMET PAS D'ÉVÉNEMENTS BUKKIT. Il a son propre bus, atteint par un service Bukkit,
- * et on s'y abonne par {@code onGenerationProgress}. L'abonnement se fait une seule fois, au
- * branchement — Chunky ne propose pas de se désabonner, ce qui est sans conséquence ici puisque le
- * module vit aussi longtemps que le serveur.
+ * <p>CHUNKY DOES NOT EMIT BUKKIT EVENTS. It has its own bus, reached through a Bukkit service,
+ * subscribed to via {@code onGenerationProgress}. The subscription happens once, at hookup —
+ * Chunky offers no way to unsubscribe, which has no consequence here since the module lives as
+ * long as the server.
  */
 public final class ChunkyCollector implements Collector {
 
-	private final Platform plateforme;
+	private final Platform platform;
 
-	private Gauge avancement;
-	private Gauge chunksFaits;
+	private Gauge progress;
+	private Gauge chunksDone;
 	private Gauge chunksTotal;
-	private Counter taches;
+	private Counter tasks;
 
-	/** L'état de chaque tâche en cours, alimenté par le bus de Chunky. */
-	private final Map<String, double[]> etat = new ConcurrentHashMap<>();
+	/** State of each running task, fed by Chunky's bus. */
+	private final Map<String, double[]> state = new ConcurrentHashMap<>();
 
-	public ChunkyCollector(Platform plateforme) {
-		this.plateforme = plateforme;
+	public ChunkyCollector(Platform platform) {
+		this.platform = platform;
 	}
 
 	@Override
-	public String nom() {
+	public String name() {
 		return "pregen";
 	}
 
 	@Override
-	public String origine() {
+	public String source() {
 		return "Chunky";
 	}
 
 	@Override
-	public void declarer(MetricRegistry r) {
-		avancement = r.gauge("pregen_progress_ratio",
-				"Avancement de la prégénération, de 0 à 1. Absent quand rien ne tourne.", "world");
-		chunksFaits = r.gauge("pregen_chunks_done", "Chunks générés pour la tâche en cours.", "world");
-		chunksTotal = r.gauge("pregen_chunks_total", "Chunks à générer pour la tâche en cours.", "world");
-		taches = r.counter("pregen_tasks_finished_total", "Prégénérations menées à terme.", "world");
-		brancher();
+	public void declare(MetricRegistry r) {
+		progress = r.gauge("pregen_progress_ratio",
+				"Pregeneration progress, from 0 to 1. Absent when nothing is running.", "world");
+		chunksDone = r.gauge("pregen_chunks_done", "Chunks generated for the current task.", "world");
+		chunksTotal = r.gauge("pregen_chunks_total", "Chunks to generate for the current task.", "world");
+		tasks = r.counter("pregen_tasks_finished_total", "Pregenerations completed.", "world");
+		hook();
 	}
 
 	@Override
-	public void relever(MetricRegistry r) {
-		// Une tâche terminée doit CESSER d'être publiée, sinon un serveur au repos afficherait
-		// éternellement « 100 % » d'une génération finie la semaine dernière.
-		avancement.clear();
-		chunksFaits.clear();
+	public void collect(MetricRegistry r) {
+		// A finished task must STOP being published, otherwise an idle server would forever
+		// show "100%" of a generation that finished last week.
+		progress.clear();
+		chunksDone.clear();
 		chunksTotal.clear();
-		etat.forEach((monde, v) -> {
-			avancement.set(v[2], monde);
-			chunksFaits.set(v[0], monde);
-			chunksTotal.set(v[1], monde);
+		state.forEach((world, v) -> {
+			progress.set(v[2], world);
+			chunksDone.set(v[0], world);
+			chunksTotal.set(v[1], world);
 		});
 	}
 
-	private void brancher() {
+	private void hook() {
 		ChunkyAPI api = Bukkit.getServicesManager().load(ChunkyAPI.class);
 		if (api == null) {
-			plateforme.avertir("Chunky : service introuvable, l'avancement ne sera pas publié");
+			platform.warn("Chunky: service not found, progress will not be published");
 			return;
 		}
 		api.onGenerationProgress(e -> {
-			String monde = e.world().toLowerCase(Locale.ROOT);
-			etat.put(monde, new double[] {e.chunks(), e.chunks() / Math.max(1e-9, e.progress() / 100.0),
+			String world = e.world().toLowerCase(Locale.ROOT);
+			state.put(world, new double[] {e.chunks(), e.chunks() / Math.max(1e-9, e.progress() / 100.0),
 					e.progress() / 100.0});
 		});
 		api.onGenerationComplete(e -> {
-			String monde = e.world().toLowerCase(Locale.ROOT);
-			etat.remove(monde);
-			taches.inc(monde);
+			String world = e.world().toLowerCase(Locale.ROOT);
+			state.remove(world);
+			tasks.inc(world);
 		});
-		plateforme.info("collecteur pregen — abonné au bus de Chunky");
+		platform.info("pregen collector — subscribed to Chunky's bus");
 	}
 }

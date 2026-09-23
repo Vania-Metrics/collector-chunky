@@ -6,25 +6,25 @@ import fr.samflix.vaniametrics.api.VaniaMetrics;
 import fr.samflix.vaniametrics.api.VaniaMetricsProvider;
 
 /**
- * Métriques de prégénération Chunky.
+ * Chunky pregeneration metrics.
  *
- * <p>Métrique à durée de vie courte : elle vaut tout pendant une génération, et rien le reste du temps.
+ * <p>Short-lived metric: it's meaningful during a generation, and nothing the rest of the time.
  */
 public final class ChunkyPaper extends JavaPlugin {
 
-	private ChunkyCollector collecteur;
+	private ChunkyCollector collector;
 
 	@Override
 	public void onEnable() {
-		VaniaMetrics metriques = VaniaMetricsProvider.get();
-		collecteur = new ChunkyCollector(metriques.plateforme());
-		metriques.enregistrer(collecteur);
+		VaniaMetrics metrics = VaniaMetricsProvider.get();
+		collector = new ChunkyCollector(metrics.platform());
+		metrics.register(collector);
 	}
 
 	@Override
 	public void onDisable() {
-		if (collecteur != null) {
-			VaniaMetricsProvider.chercher().ifPresent(m -> m.retirer(collecteur));
+		if (collector != null) {
+			VaniaMetricsProvider.find().ifPresent(m -> m.unregister(collector));
 		}
 	}
 }
