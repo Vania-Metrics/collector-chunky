@@ -8,3 +8,4 @@ api-version: '1.21'
 authors: [mc-vania]
 description: "Chunky metrics: pregeneration progress."
 depend: [VaniaMetrics, Chunky]
+folia-supported: true
