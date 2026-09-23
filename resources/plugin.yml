@@ -1,0 +1,10 @@
+# Métriques de prégénération Chunky.
+#
+# Métrique à durée de vie courte : elle vaut tout pendant une génération, et rien le reste du temps.
+name: VaniaMetrics-Chunky
+version: ${version}
+main: fr.samflix.vaniametrics.module.chunky.ChunkyPaper
+api-version: '1.21'
+authors: [mc-vania]
+description: "Métriques Chunky : avancement de la prégénération."
+depend: [VaniaMetrics, Chunky]
